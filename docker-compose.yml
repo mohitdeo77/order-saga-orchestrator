@@ -1,0 +1,63 @@
+x-service: &service
+  build: .
+  restart: on-failure
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: saga
+      POSTGRES_PASSWORD: saga
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./docker/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U saga"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  order-service:
+    <<: *service
+    build:
+      context: .
+      args: { SERVICE: order-service }
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/orders
+    ports: ["8081:8081"]
+
+  inventory-service:
+    <<: *service
+    build:
+      context: .
+      args: { SERVICE: inventory-service }
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/inventory
+    ports: ["8082:8082"]
+
+  payment-service:
+    <<: *service
+    build:
+      context: .
+      args: { SERVICE: payment-service }
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/payments
+      # Set e.g. 0.3 to make 30% of payment calls fail with 503 and watch the retries
+      PAYMENT_FAILURE_RATE: ${PAYMENT_FAILURE_RATE:-0.0}
+    ports: ["8083:8083"]
+
+  orchestrator-service:
+    <<: *service
+    build:
+      context: .
+      args: { SERVICE: orchestrator-service }
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/orchestrator
+      ORDER_SERVICE_URL: http://order-service:8081
+      INVENTORY_SERVICE_URL: http://inventory-service:8082
+      PAYMENT_SERVICE_URL: http://payment-service:8083
+    ports: ["8080:8080"]

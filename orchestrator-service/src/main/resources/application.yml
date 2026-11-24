@@ -1,0 +1,45 @@
+spring:
+  application:
+    name: orchestrator-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/orchestrator}
+    username: ${DB_USER:saga}
+    password: ${DB_PASSWORD:saga}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+
+server:
+  port: ${PORT:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+app:
+  scheduling:
+    enabled: true
+
+saga:
+  async: true
+  lease: PT60S
+  retry:            # in-process, per participant call
+    max-attempts: 3
+    initial-backoff: PT0.2S
+    max-backoff: PT2S
+  durable:          # persisted, survives restarts
+    max-attempts: 5
+    initial-backoff: PT5S
+    max-backoff: PT2M
+  recovery:
+    interval-ms: 5000
+    batch-size: 20
+  participants:
+    order-url: ${ORDER_SERVICE_URL:http://localhost:8081}
+    inventory-url: ${INVENTORY_SERVICE_URL:http://localhost:8082}
+    payment-url: ${PAYMENT_SERVICE_URL:http://localhost:8083}
+    connect-timeout: PT1S
+    read-timeout: PT2S
